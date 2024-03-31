@@ -1,0 +1,4 @@
+experiments/
+lightning_logs/
+nerf.ckpt
+**/__pycache__/
