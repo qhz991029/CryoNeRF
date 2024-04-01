@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import umap
 from einops import rearrange, reduce, repeat
+from torch.distributed.fsdp.wrap import wrap
 
 from ..utils import positional_encoding
 from .deformation import DeformationDecoder, DeformationEncoder
@@ -43,7 +44,7 @@ class CryoNeRF(pl.LightningModule):
 
         self.nerf = NeuralRadianceField(self.nerf_enc_dim, self.nerf_hid_dim, self.nerf_hid_layer_num, checkpointing=self.checkpointing)
         if self.enable_dfom:
-            self.deformation_encoder = DeformationEncoder(self.dfom_encoder, self.dfom_latent_dim)
+            self.deformation_encoder = DeformationEncoder(self.dfom_encoder, self.dfom_latent_dim, checkpointing=self.checkpointing)
             self.deformation_decoder = DeformationDecoder(self.dfom_enc_dim, self.dfom_latent_dim // 2, self.dfom_hid_dim,
                                                           self.dfom_hid_layer_num, checkpointing=self.checkpointing)
 

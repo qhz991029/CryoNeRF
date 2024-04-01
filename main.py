@@ -54,7 +54,7 @@ class Args:
     dfom_hid_layer_num: int = 2
     """Number of hidden layers besides the input and output layer of deformation field.."""
     
-    dfom_encoder: str = "resnet18"
+    dfom_encoder: Literal["resnet18", "resnet34"] = "resnet18"
     """Encoder for deformation latent variable."""
     
     dfom_latent_dim: int = 16
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     
     trainer = pl.Trainer(
         accelerator="gpu",
-        strategy="ddp",  # "ddp", "deepspeed", "ddp_find_unused_parameters_true"
+        strategy="ddp_find_unused_parameters_true",  # "ddp", "deepspeed", "ddp_find_unused_parameters_true"
         max_epochs=args.epochs,
         # max_steps=1000,
         logger=logger,
@@ -206,7 +206,7 @@ if __name__ == "__main__":
     )
     validator = pl.Trainer(
         accelerator="gpu",
-        strategy="ddp",  # "ddp", "deepspeed", "ddp_find_unused_parameters_true"
+        strategy="ddp_find_unused_parameters_true",  # "ddp", "deepspeed", "ddp_find_unused_parameters_true"
         max_epochs=args.epochs,
         logger=None,
         enable_checkpointing=False,

@@ -4,13 +4,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from torch.utils.checkpoint import checkpoint_sequential
+from torch.utils.checkpoint import checkpoint, checkpoint_sequential
 
 
 class DeformationEncoder(nn.Module):
-    def __init__(self, encoder_type: str, latent_dim: int) -> None:
+    def __init__(self, encoder_type: str, latent_dim: int, checkpointing=False) -> None:
         super().__init__()
         
+        self.checkpointing = checkpointing
         self.deformation_encoder = timm.create_model(encoder_type, num_classes=0, global_pool="", in_chans=1)
         # if encoder_type == "resnet18":
         #     self.output_layer = nn.Linear(32768, latent_dim)
@@ -21,8 +22,13 @@ class DeformationEncoder(nn.Module):
         self.output_layer = nn.LazyLinear(latent_dim)
             
     def forward(self, images):
-        x = F.relu(self.deformation_encoder(images).reshape(images.shape[0], -1))
-        latent_variable = self.output_layer(x)
+        if self.checkpointing:
+            x = checkpoint(self.deformation_encoder, images).reshape(images.shape[0], -1)
+            x = checkpoint(F.relu, x)
+            latent_variable = checkpoint(self.output_layer, x)
+        else:
+            x = F.relu(self.deformation_encoder(images).reshape(images.shape[0], -1))
+            latent_variable = self.output_layer(x)
         
         return latent_variable
     
@@ -33,10 +39,10 @@ class DeformationDecoder(nn.Module):
         
         self.checkpointing = checkpointing
         self.hid_layer_num = hid_layer_num
-        self.module_list = \
-            [nn.Linear(6 * enc_dim + latent_dim, hid_dim), nn.ReLU()] + \
-            [nn.Linear(hid_dim, hid_dim), nn.ReLU()] * hid_layer_num + \
-            [nn.Linear(hid_dim, 3)]
+        self.module_list = [nn.Linear(6 * enc_dim + latent_dim, hid_dim), nn.ReLU()]
+        for i in range(hid_layer_num):
+            self.module_list += [nn.Linear(hid_dim, hid_dim), nn.ReLU()]
+        self.module_list += [nn.Linear(hid_dim, 1)]
         
         self.mlp = nn.Sequential(*self.module_list)
         
@@ -44,7 +50,7 @@ class DeformationDecoder(nn.Module):
         encoded_pos_with_latent = torch.cat([encoded_pos, repeat(latent_variable, "B Dim -> B N L Dim",
                                                                  N=encoded_pos.shape[1], L=encoded_pos.shape[2])], dim=-1)
         if self.checkpointing:
-            delta_coord = checkpoint_sequential(self.mlp, self.hid_layer_num + 2, encoded_pos_with_latent)
+            delta_coord = checkpoint_sequential(self.mlp, len(self.mlp), encoded_pos_with_latent)
         else:
             delta_coord = self.mlp(encoded_pos_with_latent)
 

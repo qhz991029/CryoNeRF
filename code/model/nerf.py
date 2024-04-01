@@ -9,16 +9,16 @@ class NeuralRadianceField(nn.Module):
         
         self.checkpointing = checkpointing
         self.hid_layer_num = hid_layer_num
-        self.module_list = \
-            [nn.Linear(6 * enc_dim, hid_dim), nn.ReLU()] + \
-            [nn.Linear(hid_dim, hid_dim), nn.ReLU()] * hid_layer_num + \
-            [nn.Linear(hid_dim, 1)]
+        self.module_list = [nn.Linear(6 * enc_dim, hid_dim), nn.ReLU()]
+        for i in range(hid_layer_num):
+            self.module_list += [nn.Linear(hid_dim, hid_dim), nn.ReLU()]
+        self.module_list += [nn.Linear(hid_dim, 1)]
         
         self.mlp = nn.Sequential(*self.module_list)
 
     def forward(self, encoded_pos):
         if self.checkpointing:
-            density = checkpoint_sequential(self.mlp, self.hid_layer_num + 2, encoded_pos)
+            density = checkpoint_sequential(self.mlp, len(self.mlp), encoded_pos)
         else:
             density = self.mlp(encoded_pos)
 
